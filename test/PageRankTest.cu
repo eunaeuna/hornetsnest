@@ -16,7 +16,8 @@ int main(int argc, char* argv[]) {
                            graph.out_edges_ptr());
     HornetGPU hornet_graph(hornet_init);
 
-    StaticPageRank page_rank(hornet_graph, 5, 0.001);
+//    StaticPageRank page_rank(hornet_graph, 5, 0.001);
+    StaticPageRank page_rank(hornet_graph, 50, 0.001);
 
     Timer<DEVICE> TM;
     TM.start();
@@ -25,6 +26,8 @@ int main(int argc, char* argv[]) {
 
     TM.stop();
     TM.print("PageRank");
+
+    page_rank.printRankings();
 
     auto is_correct = page_rank.validate();
     std::cout << (is_correct ? "\nCorrect <>\n\n" : "\n! Not Correct\n\n");

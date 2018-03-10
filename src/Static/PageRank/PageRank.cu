@@ -39,6 +39,8 @@
 #include "Static/PageRank/PageRank.cuh"
 #include "PageRankOperators.cuh"
 
+#include <cub.cuh>
+
 namespace hornet_alg {
 
 StaticPageRank::StaticPageRank(HornetGPU& hornet,
@@ -108,7 +110,6 @@ void StaticPageRank::run() {
 	}
 }
 
-
 void StaticPageRank::printRankings() {
     pr_t*  d_scores, *h_scores;
     vid_t* d_ids, *h_ids;
@@ -120,16 +121,36 @@ void StaticPageRank::printRankings() {
     gpu::copyToDevice(hd_prdata().curr_pr, hornet.nV(), d_scores);
 	forAllnumV(hornet, SetIds { d_ids });
 
-	//?? standard_context_t context(false);
-	//?? mergesort(d_scores,d_ids,hd_prdata().nV,greater_t<float>(),context);
+    pr_t*  d_scores_out;
+    vid_t* d_ids_out;
+    gpu::allocate(d_scores_out,  hornet.nV());
+    gpu::allocate(d_ids_out,     hornet.nV());
 
+    void *d_temp_storage = NULL;
+    size_t temp_storage_bytes = 0;
+
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+          d_ids, d_ids_out, d_scores, d_scores_out, hornet.nV());
+
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+          d_scores, d_scores_out, d_ids, d_ids_out, hornet.nV());
+
+#if 1
+    host::copyFromDevice(d_ids_out, hornet.nV(), h_ids);
+    host::copyFromDevice(d_scores_out, hornet.nV(), h_scores);
+
+        for (int i = 1; i < 11; i++)
+        std::cout << "Pr[" << h_ids[hornet.nV()-i] << "]:= " <<  h_scores[hornet.nV()-i] << "\n";
+#else
     host::copyFromDevice(d_scores, hornet.nV(), h_scores);
     host::copyFromDevice(d_ids,    hornet.nV(), h_ids);
 
 	for (int i = 0; i < 10; i++)
         std::cout << "Pr[" << h_ids[i] << "]:= " <<  h_scores[i] << "\n";
+#endif
     std::cout << std::endl;
-
 	forAllnumV(hornet, ResetCurr { hd_prdata });
 	forAllnumV(hornet, SumPr     { hd_prdata });
 
